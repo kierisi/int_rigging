@@ -15,3 +15,4 @@ def hand(parent, side, fingers, phalanxes, template, color):
                 joints.append(jnt_name)
                 
         chain.fkchain(hand_grp, joints, template, color)
+        
