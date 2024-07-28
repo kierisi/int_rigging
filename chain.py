@@ -14,8 +14,8 @@ def fkchain(parent, joints, template, color):
         ctl = cmds.rename(ctl, jnt.replace("jnt", "ctl"))
             
         # position the control on the joint
-        cmds.matchTransform(ctl, jnt) 
-        #cmds.delete(cmds.parentConstraint(jnt, grp, mo=False))
+        #cmds.matchTransform(ctl, jnt) 
+        cmds.delete(cmds.parentConstraint(jnt, grp, mo=False))
             
         # parent group under the previous control
         if joint_parent:    # if joint_parent has a value, execute next line
@@ -27,14 +27,13 @@ def fkchain(parent, joints, template, color):
         cmds.pointConstraint(ctl, jnt)
         cmds.orientConstraint(ctl, jnt)
         cmds.scaleConstraint(ctl, jnt)
+
+        # Freeze transformations
+        #cmds.makeIdentity(ctl, apply=True)
             
         # set color
         cmds.setAttr("{0}.overrideEnabled".format(ctl), 1)
         cmds.setAttr("{0}.overrideColor".format(ctl), color)
-        
-        # match the rotation of the control to the rotation of the joint
-        #cmds.connectAttr("{}.rotate".format(ctl), "{}.rotate".format(jnt))
-        #cmds.connectAttr("{}.scale".format(ctl), "{}.scale".format(jnt))
 
 for side in ["lf", "rt"]:
     for phalanx in ["A", "B", "C", "D", "E"]:
