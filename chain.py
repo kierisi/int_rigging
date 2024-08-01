@@ -45,4 +45,11 @@ def create_control_from_template(name, parent, template, color):
 
     return grp, ctl
 
-def ikchain(name, side, joints, iktemplate, pvtemplate, color):
+def ikchain(name, side, parent, joints, iktemplate, pvtemplate, color):
+    ikgrp, ikctl = create_control_from_template("{0}_{1}ik_ctl".format(side, name), parent, iktemplate, color)
+    pvgrp, pvctl = create_control_from_template("{0}_{1}pv_ctl".format(side, name), parent, pvtemplate, color)
+
+    cmds.delete(cmds.parentConstraint(joints[-1], ikgrp, mo=False))
+    
+    handle, effector = cmds.ikHandle(sj=joints[0], ee=joints[-1], mo=False, sol="ikRPsolver")
+    cmds.parent(handle, ikctl)
