@@ -66,8 +66,8 @@ def place_pole_vector(polevector, jointA, jointB, jointC):
     cmds.xform(polevector, t=[pv_pos.x, pv_pos.y, pv_pos.z], ws=True)
 
 def ikchain(name, side, parent, joints, iktemplate, pvtemplate, color):
-    ikgrp, ikctl = create_control_from_template("{0}_{1}Ik_ctl".format(side, name), parent, iktemplate, color)
-    pvgrp, pvctl = create_control_from_template("{0}_{1}Pv_ctl".format(side, name), parent, pvtemplate, color)
+    ikgrp, ikctl = create_control_from_template("{0}_{1}ik_ctl".format(side, name), parent, iktemplate, color)
+    pvgrp, pvctl = create_control_from_template("{0}_{1}pv_ctl".format(side, name), parent, pvtemplate, color)
 
     cmds.delete(cmds.parentConstraint(joints[-1], ikgrp, mo=False))
 
@@ -78,73 +78,70 @@ def ikchain(name, side, parent, joints, iktemplate, pvtemplate, color):
     cmds.poleVectorConstraint(pvctl, handle)
 
     # stretch setup
-    loc = cmds.spaceLocator(n="{0}_{1}Distance_LOC".format(side, name))[0]
+    loc = cmds.spaceLocator(n="{0}_{1}distance_loc".format(side, name))[0]
     if parent:
-        cmds.parent(loc,parent)
+        cmds.parent(loc, parent)
     
     cmds.delete(cmds.parentConstraint(joints[0], loc, mo=False))
 
-    dbt = cmds.createNode("distanceBetween", n="{0}_{1}_DBT".format(side, name))
+    dbt = cmds.createNode("distanceBetween", n="{0}_{1}_dbt".format(side, name))
     cmds.connectAttr("{0}.worldMatrix[0]".format(loc), "{0}.inMatrix1".format(dbt))
     cmds.connectAttr("{0}.worldMatrix[0]".format(ikctl), "{0}.inMatrix2".format(dbt))
 
-    stretch_factor_mdn = cmds.createNode("multiplyDivide", n="{0}_{1}StretchFactor_MDN".format(side, name))
+    stretch_factor_mdn = cmds.createNode("multiplyDivide", n="{0}_{1}stretchFactor_mdn".format(side, name))
     cmds.connectAttr("{0}.distance".format(dbt), "{0}.input1X".format(stretch_factor_mdn))
     input2x_value = cmds.getAttr("{0}.tx".format(joints[1])) + cmds.getAttr("{0}.tx".format(joints[2]))
-    cmds.setAttr("{0}.input2X".format(stretch_factor_mdn), input2x_value)
+    cmds.setAttr("{0}.input2X".format(stretch_factor_mdn), abs(input2x_value))  ## ADDED ABS HERE
     cmds.setAttr("{0}.operation".format(stretch_factor_mdn), 2)
 
-    stretch_clamp = cmds.createNode("clamp", n="{0}_{1}StretchFactor_CLM".format(side, name))
+    # !!! don't create a connection between the outputX of the stretch_factor and tx of lf_arm01_jnt because it's addressed with blend colors
+
+    stretch_clamp = cmds.createNode("clamp", n="{0}_{1}StretchFactor_clm".format(side, name))
     cmds.connectAttr("{0}.outputX".format(stretch_factor_mdn), "{0}.inputR".format(stretch_clamp))
     cmds.setAttr("{0}.minR".format(stretch_clamp), 1)
     cmds.setAttr("{0}.maxR".format(stretch_clamp), 999999)
     
     stretch_blend_colors = []
     for jnt in joints[1:]:
-        jnt_stretch_mdn = cmds.createNode("multiplyDivide", n=jnt.replace("_JNT", "StretchFactor_MDN"))
-        cmds.connectAttr("{0}.outputR".format(stretch_clamp), "{0}.input2X".format(jnt_stretch_mdn))
+        jnt_stretch_mdn = cmds.createNode("multiplyDivide", n=jnt.replace("_jnt", "stretchFactor_mdn"))
+        cmds.connectAttr("{0}.outputR".format(stretch_clamp), "{0}.input2X".format(jnt_stretch_mdn))  # .tx instead of input2X?
         input1x_value = cmds.getAttr("{0}.tx".format(jnt))
         cmds.setAttr("{0}.input1X".format(jnt_stretch_mdn), input1x_value)
 
-        jnt_stretch_blc = cmds.createNode("blendColors", n=jnt.replace("_JNT", "StretchFactor_BLC"))
+        jnt_stretch_blc = cmds.createNode("blendColors", n=jnt.replace("_jnt", "stretchFactor_blc"))
         cmds.setAttr("{0}.color2R".format(jnt_stretch_blc), input1x_value)
         cmds.connectAttr("{0}.outputX".format(jnt_stretch_mdn), "{0}.color1R".format(jnt_stretch_blc))
 
         stretch_blend_colors.append(jnt_stretch_blc)
-        cmds.connectAttr("{0}.outputR".format(jnt_stretch_blc), "{0}.tx".format(jnt))
+        # delete after creating upper/lower mdn to avoid error
+        # cmds.connectAttr("{0}.outputR".format(jnt_stretch_blc), "{0}.tx".format(jnt))  # 'lf_arm01_jnt.translateX' already has an incoming connection from 'lf_arm01_jnt2.outputR'
+
+    # squash setup
+    squash_factor_mdn = cmds.createNode("multiplyDivide", n="{0}_{1}squashFactor_mdn".format(side, name))
+    cmds.connectAttr("{0}.distance".format(dbt), "{0}.input2X".format(squash_factor_mdn))
+    input2x_value = cmds.getAttr("{0}.tx".format(joints[1])) + cmds.getAttr("{0}.tx".format(joints[2]))
+    cmds.setAttr("{0}.input1X".format(squash_factor_mdn), abs(input2x_value))  ## ADDED ABS HERE
+    cmds.setAttr("{0}.operation".format(squash_factor_mdn), 2)
+
+    squash_clamp = cmds.createNode("clamp", n="{0}_{1}squashFactor_clm".format(side, name))
+    cmds.connectAttr("{0}.outputX".format(squash_factor_mdn), "{0}.inputR".format(squash_clamp))
+    cmds.setAttr("{0}.minR".format(squash_clamp), 0)
+    cmds.setAttr("{0}.maxR".format(squash_clamp), 1)
     
-    # # squash setup
-    # loc = cmds.spaceLocator(n="{0}_{1}Distance_LOC".format(side, name))[0]
-    # if parent:
-    #     cmds.parent(loc,parent)
-    
-    # cmds.delete(cmds.parentConstraint(joints[0], loc, mo=False))
+    for jnt in joints[:-1]:
+        jnt_squash_blc = cmds.createNode("blendColors", n=jnt.replace("_jnt", "squashFactor_blc"))
+        cmds.setAttr("{0}.color2R".format(jnt_squash_blc), 1)
+        cmds.connectAttr("{0}.outputR".format(squash_clamp), "{0}.color1R".format(jnt_squash_blc))
 
-    # dbt = cmds.createNode("distanceBetween", n="{0}_{1}_DBT".format(side, name))
-    # cmds.connectAttr("{0}.worldMatrix[0]".format(loc), "{0}.inMatrix1".format(dbt))
-    # cmds.connectAttr("{0}.worldMatrix[0]".format(ikctl), "{0}.inMatrix2".format(dbt))
+        cmds.connectAttr("{0}.outputR".format(jnt_squash_blc), "{0}.sy".format(jnt))
+        cmds.connectAttr("{0}.outputR".format(jnt_squash_blc), "{0}.sz".format(jnt))
 
-    # stretch_factor_mdn = cmds.createNode("multiplyDivide", n="{0}_{1}StretchFactor_MDN".format(side, name))
-    # cmds.connectAttr("{0}.distance".format(dbt), "{0}.input1X".format(stretch_factor_mdn))
-    # input2x_value = cmds.getAttr("{0}.tx".format(joints[1])) + cmds.getAttr("{0}.tx".format(joints[2]))
-    # cmds.setAttr("{0}.input2X".format(stretch_factor_mdn), input2x_value)
-    # cmds.setAttr("{0}.operation".format(stretch_factor_mdn), 2)
+    # upper arm length
+    upper_arm_mdn = cmds.createNode("multiplyDivide", n="{0}_{1}upperLength_mdn".format(side, name))
+    cmds.connectAttr("{0}.outputR".format(stretch_blend_colors[0]), "{0}.input1X".format(upper_arm_mdn))
+    cmds.connectAttr("{0}.outputX".format(upper_arm_mdn), "{0}.tx".format(joints[1]))  
 
-    # stretch_clamp = cmds.createNode("clamp", n="{0}_{1}StretchFactor_CLM".format(side, name))
-    # cmds.connectAttr("{0}.outputX".format(stretch_factor_mdn), "{0}.inputR".format(stretch_clamp))
-    # cmds.setAttr("{0}.minR".format(stretch_clamp), 1)
-    # cmds.setAttr("{0}.maxR".format(stretch_clamp), 999999)
-    
-    # stretch_blend_colors = []
-    # for jnt in joints[1:]:
-    #     jnt_stretch_mdn = cmds.createNode("multiplyDivide", n=jnt.replace("_JNT", "StretchFactorMDN"))
-    #     cmds.connectAttr("{0}.outputR".format(stretch_clamp), "{0}.input2X".format(jnt_stretch_mdn))
-    #     input1x_value = cmds.getAttr("{0}.tx".format(jnt))
-    #     cmds.setAttr("{0}.input1X".format(jnt_stretch_mdn), input1x_value)
-
-    #     jnt_stretch_blc = cmds.createNode("blendColors", n=jnt.replace("_JNT", "StretchFactor_BLC"))
-    #     cmds.setAttr("{0}.color2R".format(jnt_stretch_blc), input1x_value)
-    #     cmds.connectAttr("{0}.outputX".format(jnt_stretch_mdn), "{0}.color1R".format(jnt_stretch_blc))
-
-    #     stretch_blend_colors.append(jnt_stretch_blc)
-    #     cmds.connectAttr("{0}.outputR".format(jnt_stretch_blc), "{0}.tx".format(jnt))
+    # lower arm length
+    lower_arm_mdn = cmds.createNode("multiplyDivide", n="{0}_{1}lowerLength_mdn".format(side, name))
+    cmds.connectAttr("{0}.outputR".format(stretch_blend_colors[1]), "{0}.input1X".format(lower_arm_mdn))
+    cmds.connectAttr("{0}.outputX".format(lower_arm_mdn), "{0}.tx".format(joints[2])) 
