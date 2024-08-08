@@ -139,9 +139,26 @@ def ikchain(name, side, parent, joints, iktemplate, pvtemplate, color):
     # upper arm length
     upper_arm_mdn = cmds.createNode("multiplyDivide", n="{0}_{1}upperLength_mdn".format(side, name))
     cmds.connectAttr("{0}.outputR".format(stretch_blend_colors[0]), "{0}.input1X".format(upper_arm_mdn))
-    cmds.connectAttr("{0}.outputX".format(upper_arm_mdn), "{0}.tx".format(joints[1]))  
 
     # lower arm length
     lower_arm_mdn = cmds.createNode("multiplyDivide", n="{0}_{1}lowerLength_mdn".format(side, name))
     cmds.connectAttr("{0}.outputR".format(stretch_blend_colors[1]), "{0}.input1X".format(lower_arm_mdn))
-    cmds.connectAttr("{0}.outputX".format(lower_arm_mdn), "{0}.tx".format(joints[2])) 
+
+    # pin to pole vector
+    upper_pv_dbt = cmds.createNode("distanceBetween", n="{0}_{1}upperPinPv_dbt".format(side, name))
+    cmds.connectAttr("{0}.worldMatrix[0]".format(loc), "{0}.inMatrix1".format(upper_pv_dbt))
+    cmds.connectAttr("{0}.worldMatrix[0]".format(pvctl), "{0}.inMatrix2".format(upper_pv_dbt))
+
+    jnt1_pinpv_blc = cmds.createNode("blendColors", n="{0}_{1}upperPinPv_blc".format(side, name))
+    cmds.connectAttr("{0}.outputX".format(upper_arm_mdn), "{0}.color2R".format(jnt1_pinpv_blc))
+    cmds.connectAttr("{0}.distance".format(upper_pv_dbt), "{0}.color1R".format(jnt1_pinpv_blc))
+    cmds.connectAttr("{0}.outputR".format(jnt1_pinpv_blc), "{0}.tx".format(joints[1]))
+
+    lower_pv_dbt = cmds.createNode("distanceBetween", n="{0}_{1}lowerPinPv_dbt".format(side, name))
+    cmds.connectAttr("{0}.worldMatrix[0]".format(ikctl), "{0}.inMatrix1".format(lower_pv_dbt))
+    cmds.connectAttr("{0}.worldMatrix[0]".format(pvctl), "{0}.inMatrix2".format(lower_pv_dbt))
+
+    jnt2_pinpv_blc = cmds.createNode("blendColors", n="{0}_{1}lowerPinPv_blc".format(side, name))
+    cmds.connectAttr("{0}.outputX".format(lower_arm_mdn), "{0}.color2R".format(jnt2_pinpv_blc))
+    cmds.connectAttr("{0}.distance".format(lower_pv_dbt), "{0}.color1R".format(jnt2_pinpv_blc))
+    cmds.connectAttr("{0}.outputR".format(jnt2_pinpv_blc), "{0}.tx".format(joints[2]))
