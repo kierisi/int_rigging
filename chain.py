@@ -185,7 +185,6 @@ def ikchain(name, side, parent, joints, iktemplate, pvtemplate, color, settings_
 
     return ikctl, pvctl
 
-# not getting the rig_group created (pick back up at 1:00:05 once sorted)
 def ikfkchain(name, side, parent, joints, fktemplate, iktemplate, pvtemplate, fkcolor, ikcolor):
     rig_group = cmds.createNode("transform", n="{0}_{1}_grp".format(side, name))
     if parent:
@@ -228,6 +227,17 @@ def ikfkchain(name, side, parent, joints, fktemplate, iktemplate, pvtemplate, fk
     # rigging the arm
     fkcontrols = fkchain(rig_group, fk_joints, fktemplate, fkcolor, settings_shape)
     ikctl, pvctl = ikchain(name, side, rig_group, ik_driver_joints, iktemplate, pvtemplate, ikcolor, settings_shape)
+
+    # control visibility
+    rvr = cmds.createNode("reverse", n="{0}_{1}fkIk_rvr".format(side, name))
+    cmds.connectAttr("{0}.ik".format(settings_shape), "{0}.inputX".format(rvr))
+
+    for ctl in [ikctl, pvctl]:
+        grp = cmds.listRelatives(ctl, p=True)[0]
+        cmds.connectAttr("{0}.ik".format(settings_shape), "{0}.v".format(grp))
+
+    grp = cmds.listRelatives(fkcontrols[0], p=True)[0]
+    cmds.connectAttr("{0}.outputX".format(rvr), "{0}.v".format(grp))
 
 def duplicate_chain(joints, parent, replace_what, replace_with):
     new_joints = []
