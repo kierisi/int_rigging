@@ -72,7 +72,10 @@ def place_pole_vector(polevector, jointA, jointB, jointC):
 
     cmds.xform(polevector, t=[pv_pos.x, pv_pos.y, pv_pos.z], ws=True)
 
-def ikchain(name, side, parent, joints, iktemplate, pvtemplate, color, settings_node=None):
+def ikchain(name, side, parent, joints, iktemplate, pvtemplate, color, settings_node=None, stretch_direction="x"):
+    squash_directions = ["x", "y", "z"]
+    squash_directions.remove(stretch_direction)
+
     ikgrp, ikctl = create_control_from_template("{0}_{1}ik_ctl".format(side, name), parent, iktemplate, color, settings_node)
     pvgrp, pvctl = create_control_from_template("{0}_{1}pv_ctl".format(side, name), parent, pvtemplate, color, settings_node)
 
@@ -104,7 +107,7 @@ def ikchain(name, side, parent, joints, iktemplate, pvtemplate, color, settings_
 
     stretch_factor_mdn = cmds.createNode("multiplyDivide", n="{0}_{1}stretchFactor_mdn".format(side, name))
     cmds.connectAttr("{0}.distance".format(dbt), "{0}.input1X".format(stretch_factor_mdn))
-    input2x_value = cmds.getAttr("{0}.tx".format(joints[1])) + cmds.getAttr("{0}.tx".format(joints[2]))
+    input2x_value = cmds.getAttr("{0}.t{1}".format(joints[1], stretch_direction)) + cmds.getAttr("{0}.tx".format(joints[2]))
     cmds.setAttr("{0}.input2X".format(stretch_factor_mdn), abs(input2x_value))  ## ADDED ABS HERE
     cmds.setAttr("{0}.operation".format(stretch_factor_mdn), 2)
 
@@ -119,7 +122,7 @@ def ikchain(name, side, parent, joints, iktemplate, pvtemplate, color, settings_
     for jnt in joints[1:]:
         jnt_stretch_mdn = cmds.createNode("multiplyDivide", n=jnt.replace("_jnt", "stretchFactor_mdn"))
         cmds.connectAttr("{0}.outputR".format(stretch_clamp), "{0}.input2X".format(jnt_stretch_mdn))  # .tx instead of input2X?
-        input1x_value = cmds.getAttr("{0}.tx".format(jnt))
+        input1x_value = cmds.getAttr("{0}.t{1}".format(jnt, stretch_direction))
         cmds.setAttr("{0}.input1X".format(jnt_stretch_mdn), input1x_value)
 
         jnt_stretch_blc = cmds.createNode("blendColors", n=jnt.replace("_jnt", "stretchFactor_blc"))
@@ -134,7 +137,7 @@ def ikchain(name, side, parent, joints, iktemplate, pvtemplate, color, settings_
     # squash setup
     squash_factor_mdn = cmds.createNode("multiplyDivide", n="{0}_{1}squashFactor_mdn".format(side, name))
     cmds.connectAttr("{0}.distance".format(dbt), "{0}.input2X".format(squash_factor_mdn))
-    input2x_value = cmds.getAttr("{0}.tx".format(joints[1])) + cmds.getAttr("{0}.tx".format(joints[2]))
+    input2x_value = cmds.getAttr("{0}.t{1}".format(joints[1], stretch_direction)) + cmds.getAttr("{0}.tx".format(joints[2]))
     cmds.setAttr("{0}.input1X".format(squash_factor_mdn), abs(input2x_value))  ## ADDED ABS HERE
     cmds.setAttr("{0}.operation".format(squash_factor_mdn), 2)
 
@@ -149,8 +152,8 @@ def ikchain(name, side, parent, joints, iktemplate, pvtemplate, color, settings_
         cmds.connectAttr("{0}.outputR".format(squash_clamp), "{0}.color1R".format(jnt_squash_blc))
         cmds.connectAttr("{0}.autoSquash".format(settings_node), "{0}.blender".format(jnt_squash_blc))
 
-        cmds.connectAttr("{0}.outputR".format(jnt_squash_blc), "{0}.sy".format(jnt))
-        cmds.connectAttr("{0}.outputR".format(jnt_squash_blc), "{0}.sz".format(jnt))
+        cmds.connectAttr("{0}.outputR".format(jnt_squash_blc), "{0}.s{1}".format(jnt, squash_directions[0]))
+        cmds.connectAttr("{0}.outputR".format(jnt_squash_blc), "{0}.s{1}".format(jnt, squash_directions[1]))
 
     # upper arm length
     upper_arm_mdn = cmds.createNode("multiplyDivide", n="{0}_{1}upperLength_mdn".format(side, name))
@@ -171,7 +174,7 @@ def ikchain(name, side, parent, joints, iktemplate, pvtemplate, color, settings_
     cmds.connectAttr("{0}.outputX".format(upper_arm_mdn), "{0}.color2R".format(jnt1_pinpv_blc))
     cmds.connectAttr("{0}.distance".format(upper_pv_dbt), "{0}.color1R".format(jnt1_pinpv_blc))
     cmds.connectAttr("{0}.pinToPv".format(settings_node), "{0}.blender".format(jnt1_pinpv_blc))
-    cmds.connectAttr("{0}.outputR".format(jnt1_pinpv_blc), "{0}.tx".format(joints[1]))
+    cmds.connectAttr("{0}.outputR".format(jnt1_pinpv_blc), "{0}.t{1}".format(joints[1], stretch_direction))
 
     lower_pv_dbt = cmds.createNode("distanceBetween", n="{0}_{1}lowerPinPv_dbt".format(side, name))
     cmds.connectAttr("{0}.worldMatrix[0]".format(ikctl), "{0}.inMatrix1".format(lower_pv_dbt))
@@ -181,11 +184,11 @@ def ikchain(name, side, parent, joints, iktemplate, pvtemplate, color, settings_
     cmds.connectAttr("{0}.outputX".format(lower_arm_mdn), "{0}.color2R".format(jnt2_pinpv_blc))
     cmds.connectAttr("{0}.distance".format(lower_pv_dbt), "{0}.color1R".format(jnt2_pinpv_blc))
     cmds.connectAttr("{0}.pinToPv".format(settings_node), "{0}.blender".format(jnt2_pinpv_blc))
-    cmds.connectAttr("{0}.outputR".format(jnt2_pinpv_blc), "{0}.tx".format(joints[2]))
+    cmds.connectAttr("{0}.outputR".format(jnt2_pinpv_blc), "{0}.t{1}".format(joints[2], stretch_direction))
 
     return ikctl, pvctl
 
-def ikfkchain(name, side, parent, joints, fktemplate, iktemplate, pvtemplate, fkcolor, ikcolor):
+def ikfkchain(name, side, parent, joints, fktemplate, iktemplate, pvtemplate, fkcolor, ikcolor, stretch_direction="x"):
     rig_group = cmds.createNode("transform", n="{0}_{1}_grp".format(side, name))
     if parent:
         cmds.parent(rig_group, parent)
@@ -226,7 +229,7 @@ def ikfkchain(name, side, parent, joints, fktemplate, iktemplate, pvtemplate, fk
     
     # rigging the arm
     fkcontrols = fkchain(rig_group, fk_joints, fktemplate, fkcolor, settings_shape)
-    ikctl, pvctl = ikchain(name, side, rig_group, ik_driver_joints, iktemplate, pvtemplate, ikcolor, settings_shape)
+    ikctl, pvctl = ikchain(name, side, rig_group, ik_driver_joints, iktemplate, pvtemplate, ikcolor, settings_shape, stretch_direction)
 
     # control visibility
     rvr = cmds.createNode("reverse", n="{0}_{1}fkIk_rvr".format(side, name))
